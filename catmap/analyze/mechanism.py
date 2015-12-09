@@ -129,7 +129,7 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
                     if self.coverage_correction == True:
                         if not self.coverage_map:
                             raise UserWarning('No coverage map found.')
-                        cvg_labels = self.output_labels['interacting_energy']
+                        cvg_labels = self.output_labels['coverage']
                         valid = False
                         for pt, cvgs in self.coverage_map:
                             if pt == xy:
