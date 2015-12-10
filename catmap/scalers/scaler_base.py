@@ -146,6 +146,8 @@ class ScalerBase(ReactionModelWrapper):
                 elif E_DFT is None:
                     raise ValueError('No formation energy for '+key)
                 free_energy_dict[key] =  E_DFT + G
+        for key in self.site_names:
+            free_energy_dict[key] = 0.
         self._gas_energies = [free_energy_dict[g] for g in self.gas_names] 
         self._site_energies = [free_energy_dict.get(s,0) for s in self.site_names] 
         return free_energy_dict

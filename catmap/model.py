@@ -1367,7 +1367,7 @@ class ReactionModel:
         E_IS = self.get_state_energy(IS,energy_dict)
         E_FS = self.get_state_energy(FS,energy_dict)
         if TS:
-            E_TS = self.get_state_energy(TS,energy_dict)
+            E_TS = self.get_TS_state_energy(TS,energy_dict)
         else:
             E_TS = max(E_IS,E_FS)
 
@@ -1391,8 +1391,26 @@ class ReactionModel:
         for species in rxn_state:
             if species in energy_dict:
                 energy += energy_dict[species]
-            elif self.species_definitions[species]['type'] == 'site':
+            elif self.species_definitions[species]['type'] == 'site': #seems redundant 
                 energy += self._site_energies[self.site_names.index(species)]
+        return energy
+
+    def get_TS_state_energy(self,rxn_state,energy_dict):
+        """
+        Calculate energy for the special case of a "TS reaction state". Energies of empty sites should be excluded.
+
+        :param rxn_state: List of intermediate species (must be defined in species_definitions)
+        :type rxn: [[str]]
+
+        :param energy_dict: Dictionary of energies for all species.
+                            Keys should be species names and values
+                            should be energies.
+        :type energy_dict: dict
+        """
+        energy = 0
+        for species in rxn_state:
+            if species in energy_dict and '-' in species:
+                energy += energy_dict[species]
         return energy
 
     def adsorption_to_reaction_energies(self,free_energy_dict):

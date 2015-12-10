@@ -130,11 +130,35 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
                         if not self.coverage_map:
                             raise UserWarning('No coverage map found.')
                         cvg_labels = self.output_labels['coverage']
+                        site_cvgs = {}
+                        for site in self.site_names:
+                            if site != 'g':
+                                cvg_labels = cvg_labels + (site,)
+                                site_cvgs[site] = self.species_definitions[site]['total']
+
                         valid = False
                         for pt, cvgs in self.coverage_map:
                             if pt == xy:
                                 valid = True
                                 for ads,cvg in zip(cvg_labels, cvgs):
+                                    for site in self.site_names:
+                                        if site == ads.split('_')[-1]:
+                                            site_cvgs[site] -= cvg
+
+                        if valid == False:
+                            raise UserWarning('No coverages found for '+str(xy)+' in map')
+
+                        valid = False
+                        for pt, cvgs in self.coverage_map:
+                            if pt == xy:
+                                valid = True
+                                all_cov = []
+                                for cvg in cvgs:
+                                    all_cov.append(cvg)
+                                for site in self.site_names:
+                                    if site != 'g':
+                                        all_cov.append(site_cvgs[site])
+                                for ads,cvg in zip(cvg_labels, all_cov):
                                     energy_dict[ads] += self._kB*self.temperature*log(
                                                                             float(cvg))
                         if valid == False:
