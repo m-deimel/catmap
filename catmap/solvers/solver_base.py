@@ -121,6 +121,32 @@ class SolverBase(ReactionModelWrapper):
             if out == 'forward_rate_constant':
                 self._forward_rate_constant = list(self._kf)
                 self.output_labels['forward_rate_constant'] = self.elementary_rxns
+            if out == 'pressure_corrected_forward_rate_constant':
+                kf_pc = []
+                kf = list(self._kf)
+                for rxn, k in zip(self.elementary_rxns,kf):
+                    IS = rxn[0]
+                    k_pc = k
+                    for species in IS:
+                        if species in self.gas_names:
+                            P = self.gas_pressures[self.gas_names.index(species)]
+                            k_pc *= P
+                    kf_pc.append(k_pc)
+                self._pressure_corrected_forward_rate_constant = kf_pc
+                self.output_labels['pressure_corrected_forward_rate_constant'] = self.elementary_rxns
+            if out == 'pressure_corrected_reverse_rate_constant':
+                kr_pc = []
+                kr = list(self._kr)
+                for rxn, k in zip(self.elementary_rxns,kr):
+                    FS = rxn[-1]
+                    k_pc = k
+                    for species in FS:
+                        if species in self.gas_names:
+                            P = self.gas_pressures[self.gas_names.index(species)]
+                            k_pc *= P
+                    kr_pc.append(k_pc)
+                self._pressure_corrected_reverse_rate_constant = kr_pc
+                self.output_labels['pressure_corrected_reverse_rate_constant'] = self.elementary_rxns
             if out == 'reverse_rate_constant':
                 self._reverse_rate_constant = list(self._kr)
                 self.output_labels['reverse_rate_constant'] = self.elementary_rxns
