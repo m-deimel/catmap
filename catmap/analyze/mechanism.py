@@ -27,7 +27,7 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
         MechanismPlot.__init__(self,[0])
 
     def plot(self,ax=None,plot_variants=None,mechanisms=None,
-            labels=None,save=True):
+            labels=None,save=True,linestyle='-'):
         """
         Generates the potential energy diagram plot
 
@@ -176,6 +176,9 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
                         self.energy_line_args['color'] = \
                                 self.barrier_line_args['color'] = \
                                 self.plot_variant_colors[n]
+
+                    self.energy_line_args['ls'] = self.barrier_line_args['ls'] = linestyle
+
                     for step in mech:
 
                         if str(step).startswith('half'):
