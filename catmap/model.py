@@ -4,14 +4,14 @@ import inspect
 from copy import copy
 import numpy as np
 import catmap
-from string import Template
-import functions
-import re
-from data import regular_expressions
-string2symbols = catmap.string2symbols
-pickle = catmap.pickle
-plt = catmap.plt
 from catmap import griddata
+from string import Template
+from . import functions
+import re
+from .data import regular_expressions
+string2symbols = catmap.string2symbols
+plt = catmap.plt
+
 
 class ReactionModel:
     """
@@ -26,41 +26,41 @@ class ReactionModel:
     - external parameters (temperature, pressures)
     - other more technical settings related to the solver and mapper
     """
-    def __init__(self,**kwargs): #
+    def __init__(self, **kwargs):
         """Class for managing microkinetic models.
 
            :param setup_file: Specify <mkm-file> from which to load model.
            :type setup_file: str
             """
-        #Set static utility functions
+        # Set static utility functions.
         for f in dir(functions):
-            if not f.startswith('_') and callable(getattr(functions,f)):
-                setattr(self,f,getattr(functions,f))
+            if not f.startswith('_') and callable(getattr(functions, f)):
+                setattr(self, f, getattr(functions, f))
 
-        self._kB = 8.617332478e-5 #eV/K (from NIST)
-        self._h = 4.135667516e-15 #eV s (from NIST)
+        self._kB = 8.617332478e-5  # eV/K (from NIST)
+        self._h = 4.135667516e-15  # eV s (from NIST)
         self._default_site = 's'
         self._gas_sites = ['g']
-        self._required = {'adsorbate_names':tuple,
-                'transition_state_names':tuple,
-                'gas_names':tuple,
-                'descriptor_names':tuple,
-                'surface_names':tuple,
-                'species_definitions':dict,
-                'elementary_rxns':tuple,
-                'thermodynamics':None,
-                'numerical_representation':None,
-                'scaler':None,
-                'solver':None,
-                'mapper':None,
-                } #These are requirements of any reaction model.
+        # These are requirements of any reaction model.
+        self._required = {'adsorbate_names': tuple,
+                          'transition_state_names': tuple,
+                          'gas_names': tuple,
+                          'descriptor_names': tuple,
+                          'surface_names': tuple,
+                          'species_definitions': dict,
+                          'elementary_rxns': tuple,
+                          'thermodynamics': None,
+                          'numerical_representation': None,
+                          'scaler': None,
+                          'solver': None,
+                          'mapper': None}
 
-        self._classes = ['parser','scaler', 'thermodynamics',
-                'solver','mapper']
+        self._classes = ['parser', 'scaler', 'thermodynamics',
+                         'solver', 'mapper']
         self._solved = None
-        #keeps track of whether or not the model was solved
+        # Keeps track of whether or not the model was solved.
 
-        #attributes for logging
+        # Attributes for logging
         self._log_lines = []
         self._log_dict = {}
 
@@ -68,11 +68,14 @@ class ReactionModel:
                              'loaded all data from input file',
                              'header_fail':
                              'could not save ${save_txt}'}
-        #modules to import in the log file to allow opening with python -i
-        self._log_imports = "from numpy import array\n\n"+\
-                            "import cPickle as pickle\n\n"
-        #attrs taking up more space than this will be dumpted to self.data_file
-        self._max_log_line_length = 8000 #100 lines at 80 cols
+        # Modules to import in the log file to allow opening with python -i
+        self._log_imports = "from numpy import array\n\n" + \
+                            "try:\n" + \
+                            "    import cPickle as pickle\n\n" + \
+                            "except: #workaround for python3.X\n" + \
+                            "    import _pickle as pickle\n\n"
+        # attrs taking up more space will be dumpted to self.data_file
+        self._max_log_line_length = 8000  # 100 lines at 80 cols
         #Character used for loop depth in std out
         self._pickle_attrs = [] #attributes to pickle rather than ASCII
         #place to store warnings
@@ -119,10 +122,10 @@ class ReactionModel:
             #This is NOT idiot proof.
             self.model_name = self.setup_file.rsplit('.',1)[0]
             self.load(self.setup_file)
-       
+
     # Functions for executing the kinetic model
 
-    def run(self,**kwargs):
+    def run(self, **kwargs):
         """Run the microkinetic model. If recalculate is True then
         data which is re-loaded will be used as an initial guess; otherwise it
         will be assumed to be correct.
@@ -133,7 +136,7 @@ class ReactionModel:
         """
 
         for key in kwargs:
-            setattr(self,key,kwargs[key])
+            setattr(self, key, kwargs[key])
 
         # if 'all' is in output_variables, expand it to all processed output_variables
         # note that this expansion needs to happen in ReactionModel.run and not
@@ -148,28 +151,30 @@ class ReactionModel:
                 )
             ))
 
-        #ensure resolution has the proper dimensions
-        if not hasattr(self.resolution,'__iter__'):
+        # Ensure resolution has the proper dimensions.
+        if not hasattr(self.resolution, '__iter__'):
             self.resolution = [self.resolution]*len(self.descriptor_names)
 
-        #set numerical representation
+        # Set numerical representation.
         if self.numerical_representation == 'mpmath':
             import mpmath as mp
-            mp.mp.dps = self.decimal_precision + 25 #pad decimal precision
+            mp.mp.dps = self.decimal_precision + 25  # pad decimal precision
             self._math = mp
             self._log_imports += "\nfrom mpmath import mpf \n\n"
-            self._kB = mp.mpf('8.617332478e-5') #eV/K (from NIST)
-            self._h = mp.mpf('4.135667516e-15') #eV s (from NIST)
+            self._kB = mp.mpf('8.617332478e-5')  # eV/K (from NIST)
+            self._h = mp.mpf('4.135667516e-15')  # eV s (from NIST)
             self._mpfloat = mp.mpf
             self._matrix = mp.matrix
+            #self._Axb_solver = mp.qr_solve
             self._Axb_solver = mp.lu_solve
-            self._math.infnorm = lambda x: mp.norm(x,'inf')
-        elif self.numerical_representation in ['numpy','python']:
+            self._math.infnorm = lambda x: mp.norm(x, 'inf')
+        elif self.numerical_representation in ['numpy', 'python']:
             self._log_imports += "\nfrom numpy import matrix \n\n"
             self._math = np
-            self._math.infnorm = lambda x: np.linalg.norm(x,np.inf)
+            self._math.infnorm = lambda x: np.linalg.norm(x, np.inf)
             self._mpfloat = float
-            def matrixT(*args,**kwargs):
+
+            def matrixT(*args, **kwargs):
                 array = np.array(args[0])
                 while 1 in array.shape:
                     sum_idx = array.shape.index(1)
@@ -177,28 +182,30 @@ class ReactionModel:
                 return array.T
 
             self._matrix = matrixT
-            def Axb_solver(A,b):
+
+            def Axb_solver(A, b):
                 try:
-                    return np.linalg.solve(A,b.T)
+                    return np.linalg.solve(A, b.T)
                 except np.linalg.linalg.LinAlgError:
                     raise ZeroDivisionError
+
             self._Axb_solver = Axb_solver
             if self.decimal_precision > 15:
-                print(
-                'Warning: Max precision with numpy/python is 16 digits')
+                print('Warning: Max precision with numpy/python is 16 digits')
                 self.decimal_precision = 15
         else:
             raise AttributeError(
-            'Numerical representation must be mpmath, numpy, or python.')
+                'Numerical representation must be mpmath, numpy, or python.')
 
-        #set up interaction model
+        # Set up interaction model.
         if self.adsorbate_interaction_model == 'first_order':
-            interaction_model = catmap.thermodynamics.FirstOrderInteractions(self)
+            interaction_model = \
+                catmap.thermodynamics.FirstOrderInteractions(self)
             interaction_model.get_interaction_info()
             response_func = interaction_model.interaction_response_function
             if not callable(response_func):
                 int_function = getattr(interaction_model,
-                        response_func+'_response')
+                                       response_func+'_response')
                 interaction_model.interaction_response_function = int_function
             self.thermodynamics.__dict__['adsorbate_interactions'] = interaction_model
 
@@ -223,71 +230,80 @@ class ReactionModel:
 
         self.compatibility_check()
 
-        #determine whether or not to (re-)solve model
+        # Determine whether or not to (re-)solve model.
         has_all = True
         for v in self.output_variables:
-            if not hasattr(self,v+'_map'):
+            if not hasattr(self, v+'_map'):
                 has_all = False
 
-        if not hasattr(self,'stdout'):
-            #any re-loaded model will have stdout
+        if not hasattr(self, 'stdout'):
+            # Any re-loaded model will have stdout.
             has_all = False
 
-        if self._solved == self._token() and not getattr(self,'recalculate',None):
-            #Do not solve the same model twice
+        if self._solved == self._token() and \
+           not getattr(self, 'recalculate', None):
+            # Do not solve the same model twice.
             has_all = True
 
-        elif has_all and not getattr(self,'recalculate',None):
-            #All data has been loaded and no verification => solved.
+        elif has_all and not getattr(self, 'recalculate', None):
+            # All data has been loaded and no verification => solved.
             self._solved = self._token()
             self.log('input_success')
 
         else:
-            ran_dsa = False #When no map exists, run descriptor space analysis first
-            if not getattr(self,'coverage_map',None):
-                #Make "volcano plot"
-                if getattr(self,'descriptor_ranges',None) and getattr(self,'resolution',None):
+            ran_dsa = False
+            # When no map exists, run descriptor space analysis first.
+            if not getattr(self, 'coverage_map', None):
+                # Make "volcano plot".
+                if getattr(self, 'descriptor_ranges', None) and \
+                   getattr(self, 'resolution', None):
                     self.descriptor_space_analysis()
                     ran_dsa = True
 
-            #Get rates at single points
-            if getattr(self,'descriptors',None):
+            # Get rates at single points.
+            if getattr(self, 'descriptors', None):
                 self.single_point_analysis(self.descriptors)
-            #Get rates at multiple points
-            if getattr(self,'descriptor_values',None):
+            # Get rates at multiple points.
+            if getattr(self, 'descriptor_values', None):
                 self.multi_point_analysis()
 
-            #If a map exists, run descriptor space analysis last (so that single-point guesses are
-            #not discarded)
-            if not ran_dsa and getattr(self,'descriptor_ranges',None) and getattr(self,'resolution',None):
-                    self.descriptor_space_analysis()
+            # If a map exists, run descriptor space analysis last
+            # (so that single-point guesses are not discarded).
+            if not ran_dsa and (getattr(self, 'descriptor_ranges', None) and
+                                getattr(self, 'resolution', None)):
+                self.descriptor_space_analysis()
 
-            #Save long attrs in data_file
+            # Save long attrs in data_file.
             for attr in dir(self):
                 if (not attr.startswith('_') and
-                        not callable(getattr(self,attr)) and
-                        attr not in self._classes):
-                    if (len(repr(getattr(self,attr))) >
+                        not callable(getattr(self, attr)) and
+                        attr not in self._classes and
+                        not inspect.ismodule(getattr(self,attr))):
+                    if (len(repr(getattr(self, attr))) >
                             self._max_log_line_length):
-                        #line is too long for logfile -> put into pickle
+                        # Line is too long for logfile -> put into pickle
                         self._pickle_attrs.append(attr)
             pickled_data = {}
             for attr in self._pickle_attrs:
-                pickled_data[attr] = getattr(self,attr)
-            pickle.dump(pickled_data,open(self.data_file,'w'))
+                pickled_data[attr] = getattr(self, attr)
+            if sys.version_info[0]<3:
+                catmap.pickle.dump(pickled_data, open(self.data_file, 'w'))
+            else:
+                # Fallback workaround for Py3
+                catmap.pickle.dump(pickled_data, open(self.data_file, 'wb',2))
 
-            #Make logfile
+            # Make logfile
             log_txt = self._log_imports
             log_txt += self._header(exclude_outputs=self._pickle_attrs)
             self._stdout = '\n'.join(self._log_lines)
             log_txt += 'stdout = ' + '"'*3+self._stdout+'"'*3
-            #this construction means that self.stdout will only be set
-            #for models which have been re-loaded.
+            # This construction means that self.stdout will only be set
+            # for models which have been re-loaded.
             self._solved = self._token()
             if hasattr(self,'log_file'):
                 logfile = self.log_file
             else:
-                name,suffix = self.setup_file.rsplit('.',1)
+                name, suffix = self.setup_file.rsplit('.', 1)
                 if suffix != 'log':
                     suffix = 'log'
                 else:
@@ -338,12 +354,12 @@ class ReactionModel:
                 func_string = template.substitute(self._function_substitutions)
                 self._function_strings[func_name] = func_string
                 locs = {}
-                exec func_string in globals(), locs
+                exec(func_string, globals(), locs)
                 setattr(self,func_name,locs[func_name])
 
     #File IO functions
 
-    def load(self,setup_file): #
+    def load(self, setup_file): #
         """Load a 'setup file' by importing it and assigning all local
         variables as attributes of the kinetic model. Special attributes
         mapper, parser, scaler, solver will attempt to convert strings
@@ -364,8 +380,8 @@ class ReactionModel:
 
         globs = {}
         locs = defaults
-
-        execfile(setup_file,globs,locs)
+        
+        exec(compile(open(setup_file, 'rb').read(), '<string>', 'exec'), globs, locs)
         for var in locs.keys():
             if var in self._classes:
                 #black magic to auto-import classes
@@ -415,20 +431,23 @@ class ReactionModel:
 
         self.verify()
 
-    def load_data_file(self,overwrite=False):
+    def load_data_file(self, overwrite=False):
         """
         Load in output data from external files.
         """
         if os.path.exists(self.data_file):
-            pickled_data = pickle.load(open(self.data_file,'r'))
+            try:
+                pickled_data = catmap.pickle.load(open(self.data_file, 'r'))
+            except:
+                pickled_data = catmap.pickle.load(open(self.data_file, 'rb'))
             for attr in pickled_data:
                 if not overwrite:
-                    if getattr(self,attr,None) is None: #don't over-write
-                        setattr(self,attr,pickled_data[attr])
+                    if getattr(self, attr, None) is None:  # Don't over-write
+                        setattr(self, attr, pickled_data[attr])
                 else:
-                    setattr(self,attr,pickled_data[attr])
+                    setattr(self, attr, pickled_data[attr])
 
-    def parse(self,*args, **kwargs): #
+    def parse(self, *args, **kwargs):
         """
         Read in all the information from the input_file. Alias
         to parser.parse.
@@ -588,6 +607,11 @@ class ReactionModel:
             # are separated from reactions by ";" and from each other by ","
             eq = rxn
             options = None
+            if rxn.count('->') > 2:
+                print(("Warning: reaction\n\n"
+                       "\t({rxn_index})\t{rxn}\n\n is very long!\n"
+                       "Make sure this is intended and there is no missing ',' (comma)\n"
+                       "at the end of the line.\n").format(**locals()))
             if ';' in rxn:
                 eq, options = rxn.split(';')
             if options:
@@ -689,7 +713,7 @@ class ReactionModel:
                     name,site = sp.rsplit('_',1)
                 new_list.append([site,sp])
             new_list.sort()
-            return zip(*new_list)[-1]
+            return list(zip(*new_list))[-1]
 
         self.gas_names = sort_list(gas_names)
         self.adsorbate_names = sort_list(adsorbate_names)
@@ -1035,7 +1059,7 @@ class ReactionModel:
                 elif isinstance(prefactor,dict):
                     A_site = prefactor["A_site"]
                     if prefactor["type"] == "non-activated":
-                        from ase.atoms import string2symbols
+                        from catmap import string2symbols
                         from ase.data import atomic_masses
                         from ase.data import atomic_numbers
                         assert len(rxn) == 2 #if not, rxn is not non-activated
@@ -1126,12 +1150,14 @@ class ReactionModel:
         exec(self._log_imports) #needed for testing evaluation of log file
         #load in pickled data at the beginning
         header += 'binary_data = ' + 'pickle.load(open("' + \
-                                                self.data_file +'"))\n\n'
+                                                self.data_file +'","rb"))\n\n'
         header += 'locals().update(binary_data)\n\n'
         for attr in dir(self):
             if (not attr.startswith('_') and
                     not callable(getattr(self,attr)) and
-                    attr not in self._classes):
+                    attr not in self._classes and
+                    not inspect.ismodule(getattr(self,attr))):
+                print(attr)
                 val = repr(getattr(self,attr))
                 new_line = ''
                 if attr not in self._pickle_attrs:
@@ -1194,7 +1220,7 @@ class ReactionModel:
 
     def nearest_mapped_point(self,mapp,point):
         """Get the point in the map nearest to the point supplied"""
-        pts,outs = zip(*mapp)
+        pts,outs = list(zip(*list(mapp)))
         deltas = []
         for pt in pts:
             dist = sum([(xi-xo)**2 for xi,xo in zip(point,pt)])
@@ -1231,15 +1257,15 @@ class ReactionModel:
         :type maxval: float
         """
         desc_rngs = copy(descriptor_ranges)
-        pts,datas = zip(*mapp)
-        cols = zip(*datas)
+        pts,datas = list(zip(*list(mapp)))
+        cols = list(zip(*list(datas)))
         if len(pts[0]) == 1:
-            xData = np.array(zip(*pts)[0])
+            xData = np.array(list(zip(*list(pts)))[0])
             sorted_order = xData.argsort()
             maparray = np.zeros((resolution[0],len(datas[0])))  # resolution assumed to be [x, 1]
             x_range = desc_rngs[0]
             xi = np.linspace(x_range[0],x_range[1],resolution[0])
-            datas = zip(*datas)
+            datas = list(zip(*list(datas)))
             for i,yData in enumerate(datas):
                 yData = np.array(yData)
                 y_sp = catmap.spline(xData[sorted_order],yData[sorted_order],k=1)
@@ -1247,9 +1273,9 @@ class ReactionModel:
                 maparray[:,i] = yi
 
         elif len(pts[0]) == 2:
-            xData,yData = zip(*pts)
+            xData,yData = list(zip(*list(pts)))
             maparray = np.zeros((resolution[1],resolution[0],len(datas[0])))
-            datas = zip(*datas)
+            datas = list(zip(*list(datas)))
             x_range,y_range = desc_rngs
             xi = np.linspace(*x_range+[resolution[0]])
             yi = np.linspace(*y_range+[resolution[1]])
@@ -1261,11 +1287,11 @@ class ReactionModel:
                 if log_interpolate == True:
                     Zdata_log = np.array(
                             [np.log(abs(float(zn))) for zn in Zdata])
-                    z_sign = np.sign(griddata(xData,yData,Zdata,xi,yi))
-                    z_num = griddata(xData,yData,Zdata_log,xi,yi)
+                    z_sign = np.sign(griddata((xData,yData),Zdata,(xi[None,:],yi[:,None]),method='cubic'))
+                    z_num = griddata((xData,yData),Zdata_log,(xi[None,:],yi[:,None]),method='cubic')
                     zi = np.exp(z_num)*z_sign
                 else:
-                    zi = griddata(xData,yData,Zdata,xi,yi)
+                    zi = griddata((xData,yData),Zdata,(xi[None,:],yi[:,None]),method='cubic')
                 maparray[:,:,i] = zi
         return maparray
 
@@ -1326,7 +1352,7 @@ class ReactionModel:
             data = get_next_dim(array,list(ij))
             datas.append(data)
 
-        mapp = zip(*[pts,datas])
+        mapp = list(zip(*[pts,datas]))
         return mapp
 
     #Commonly used convenience functions
@@ -1523,7 +1549,7 @@ class ReactionModel:
         if self.rxn_options_dict['prefactor']:
             if not self.prefactor_list:
                 self.prefactor_list = [None] * len(self.elementary_rxns)
-            for key, value in self.rxn_options_dict['prefactor'].iteritems():
+            for key, value in self.rxn_options_dict['prefactor'].items():
                 if value == "None":
                     value = None
                 else:

@@ -1,22 +1,28 @@
-#Standard dependencies
+# Standard dependencies
 import os
 import sys
 import inspect
 import time
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except (ImportError, ModuleNotFoundError):
+    import _pickle as pickle
+
 import re
 from copy import copy
 from string import Template
 
-#Non-standard dependencies
+# Non-standard dependencies
 import numpy as np
 try:
     from scipy.interpolate import InterpolatedUnivariateSpline as spline
 except ImportError:
-    def spline_wrapper(x_data, y_data, k=3):  # input kwarg k is intentionally ignored
+    # input kwarg k is intentionally ignored.
+    def spline_wrapper(x_data, y_data, k=3):
         # behaves like scipy.interpolate.InterpolatedUnivariateSpline for k=1
         def spline_func(x):
-            return np.interp(x, map(float,x_data), map(float,y_data))  # loss of precision here
+            # loss of precision here
+            return np.interp(x, map(float,x_data), map(float,y_data))
         return spline_func
     spline = spline_wrapper
 
@@ -24,32 +30,31 @@ import matplotlib as mpl
 mpl.use('Agg')
 import pylab as plt
 import matplotlib.transforms as mtransforms
-from matplotlib.mlab import griddata as mlab_griddata
+from scipy.interpolate import griddata as sp_griddata
 
 def griddata(*args, **kwargs):
     """Wrapper function to avoid annoying griddata errors"""
     try:
-        return mlab_griddata(*args, **kwargs)
+        return sp_griddata(*args, **kwargs)
     except RuntimeError:
         kwargs['interp'] = 'linear'
-        return mlab_griddata(*args, **kwargs)
+        return sp_griddata(*args, **kwargs)
 
 import mpmath as mp
-from ase.atoms import string2symbols
+try:
+    from ase.symbols import string2symbols
+except:
+    from ase.atoms import string2symbols
 from ase.thermochemistry import IdealGasThermo, HarmonicThermo
-from ase.structure import molecule
+try:
+    from ase.build import molecule
+except ImportError:
+    from ase.structure import molecule
+from ase.thermochemistry import IdealGasThermo, HarmonicThermo, HinderedThermo
 from catmap.model import ReactionModel
-import data
+from . import data
 
-__version__ = "0.2.270"
-
-def griddata(*args, **kwargs):
-    """Wrapper function to avoid annoying griddata errors"""
-    try:
-        return mlab_griddata(*args, **kwargs)
-    except RuntimeError:
-        kwargs['interp'] = 'linear'
-        return mlab_griddata(*args, **kwargs)
+__version__ = "0.3.1"
 
 def load(setup_file):
     rxm = ReactionModel(setup_file = setup_file)
@@ -57,9 +62,9 @@ def load(setup_file):
 
 modified = []
 class ReactionModelWrapper:
-    def __getattribute__(self,attr):
-        "Force use of custom getattr"
-        return self.__getattr__(self,attr)
+    #def __getattribute__(self,attr):
+        #"Force use of custom getattr"
+        #return object.__getattr__(self,attr)
 
     def __getattr__(self,attr):
         "Return the value of the reaction model instance if its there. Otherwise return the instances own value (or none if the instance does not have the attribute defined and the attribute is not private)"

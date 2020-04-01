@@ -3,8 +3,9 @@ from catmap import ReactionModelWrapper
 from catmap.model import ReactionModel
 np = catmap.np
 re = catmap.re
-copy = catmap.copy
+# copy = catmap.copy
 string2symbols = catmap.string2symbols
+
 
 class ScalerBase(ReactionModelWrapper):
     def __init__(self,reaction_model = None):
@@ -28,8 +29,8 @@ class ScalerBase(ReactionModelWrapper):
             adsorbate approximation.
         frequency_dict: a dictionary of vibrational frequencies (in eV) for 
             each gas/adsorbate. Should be of the form 
-            frequency_dict[ads] = [freq1, freq2,...]. Needed for ideal gas or 
-            harmonic adsorbate approximations.
+            frequency_dict[ads] = [freq1, freq2,...]. Needed for ideal gas, 
+            harmonic adsorbate, or hindered adsorbate approximations.
 
         A functional derived scaler class must also contain the methods:
 
@@ -151,6 +152,21 @@ class ScalerBase(ReactionModelWrapper):
         self._gas_energies = [free_energy_dict[g] for g in self.gas_names] 
         self._site_energies = [free_energy_dict.get(s,0) for s in self.site_names] 
         return free_energy_dict
+    
+    def get_enthalpies(self,descriptors,**kwargs):
+        self.get_free_energies(descriptors,**kwargs)
+        return self._enthalpy_dict.copy()
+    
+    def get_total_enthalpies(self,descriptors,**kwargs):
+        self.get_free_energies(descriptors,**kwargs)
+        energy_dict = self._enthalpy_dict.copy()
+        for _ in energy_dict.keys():
+            energy_dict[_] += self._electronic_energy_dict[_]
+        return energy_dict
+    
+    def get_entropies(self,descriptors,**kwargs):
+        self.get_free_energies(descriptors,**kwargs)
+        return self._entropy_dict.copy()
 
     def summary_text(self):
         return ''

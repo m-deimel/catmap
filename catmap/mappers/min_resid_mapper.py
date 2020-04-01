@@ -1,4 +1,4 @@
-from mapper_base import *
+from .mapper_base import *
 
 class MinResidMapper(MapperBase):
     """Mapper which uses initial guesses with minimum residual."""
@@ -125,7 +125,7 @@ class MinResidMapper(MapperBase):
                     cvgs = self.solver.get_coverage(params,*args,**kwargs)
                     self.log('single_point_success',new_pt=descriptors,i=i)
                     break
-                except ValueError,strerror:
+                except ValueError as strerror:
                     self.log('single_point_fail',new_pt=descriptors,i=i)
         else:
             cvgs = self.solver.get_coverage(params,*args,**kwargs)
@@ -252,9 +252,10 @@ class MinResidMapper(MapperBase):
         d1Vals = d1Vals[::-1]
         d2Vals = d2Vals[::-1]
 
-        isMapped = np.zeros((len(d1Vals),len(d2Vals))) #matrix to track which
+        #matrix to track which
         #values have been checked/which directions have been searched
-        maxNum = int('1'*len(self.search_directions),2) #if number is higher
+        isMapped = np.zeros((len(d1Vals),len(d2Vals)), dtype=int) 
+        maxNum = int('1'*len(self.search_directions), 2) #if number is higher
         #than this then the point should not be checked
         #(use binary representation to determine which directions have
         #been checked). Number can't be higher than having a
@@ -322,7 +323,7 @@ class MinResidMapper(MapperBase):
                                 point,guess_coverage)
                         point_coverages = self._coverage
                         self._coverage_map.append([point,point_coverages])
-                        isMapped[i,j] = int('1'+str(np.binary_repr(maxNum)),2)
+                        isMapped[i,j] = int('1'+str(np.binary_repr(maxNum)), 2)
                         #Set this value above the max number
                         self.log('initial_success')
                     except ValueError:
@@ -372,7 +373,7 @@ class MinResidMapper(MapperBase):
                                     old_pt=sol_pt)
                         return None
 
-                    except ValueError,strerror:
+                    except ValueError as strerror:
                         strerror = str(strerror)
                         resid = strerror.split('resid=')[-1]
                         resid = resid.split(')')[0]

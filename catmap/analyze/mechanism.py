@@ -1,7 +1,12 @@
-from analysis_base import *
+from .analysis_base import *
 import numpy as np
 from math import log
 from catmap.functions import convert_formation_energies
+try:
+    from graphviz import Digraph
+except ImportError:
+    print('Warning! graphviz not imported.')
+from itertools import chain, product
 
 class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
     """
@@ -89,9 +94,18 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
 
                     if self.energy_type == 'free_energy':
                         energy_dict = self.scaler.get_free_energies(xy)
+
                     elif self.energy_type == 'potential_energy':
                         energy_dict = self.scaler.get_free_energies(xy)
                         energy_dict.update(self.scaler.get_electronic_energies(xy))
+
+                    elif self.energy_type == 'enthalpy':
+                        energy_dict = self.scaler.get_total_enthalpies(xy)
+
+                    elif self.energy_type == 'entropy':
+                        energy_dict = self.scaler.get_entropies(xy)
+                        for k in energy_dict.keys():
+                            energy_dict[k] *= self.temperature 
 
                     elif self.energy_type == 'interacting_energy':
 
@@ -124,7 +138,10 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
                         for key in energy_dict:
                             if key.endswith('_g'):
                                 P = self.gas_pressures[self.gas_names.index(key)]
-                                energy_dict[key] += self._kB*self.temperature*log(P)
+                                if P > 0.:
+                                    energy_dict[key] += self._kB*self.temperature*log(P)
+                                else:
+                                    pass
                    
                     if self.coverage_correction == True:
                         if not self.coverage_map:
@@ -140,6 +157,7 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
                         if valid == False:
                             raise UserWarning('No coverages found for '+str(xy)+' in map')
                     
+                    a = self._enthalpy_dict
                     params = self.adsorption_to_reaction_energies(energy_dict)
                     self.energies = [0]
                     self.barriers = []
@@ -209,7 +227,7 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
                             rxn = rxn*-1
                         else:
                             reverse = False
-                    self.data_dict[self.rxn_mechanisms.keys()[n]] = [self.energies,
+                    self.data_dict[list(self.rxn_mechanisms.keys())[n]] = [self.energies,
                             self.barriers]
 
                     kwargs = self.kwarg_list[n]
@@ -223,6 +241,10 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
             ax.set_ylabel('$\Delta G$ [eV]')
         elif self.energy_type == 'potential_energy':
             ax.set_ylabel('$\Delta E$ [eV]')
+        elif self.energy_type == 'enthalpy':
+                    ax.set_ylabel('$\Delta H$ [eV]')
+        elif self.energy_type == 'entropy':
+                    ax.set_ylabel('$T\Delta S$ [eV]')            
         if self.energy_type == 'interacting_energy':
             ax.set_ylabel('$\Delta G_{interacting}$ [eV]')
         fig.subplots_adjust(**self.subplots_adjust_kwargs)
@@ -254,3 +276,53 @@ class MechanismAnalysis(MechanismPlot,ReactionModelWrapper,MapPlot):
 
         L = '+'.join(species)
         return ' '+L
+
+    def create_graph(self, mechanism=None, filename=None,
+                     exclude_sites = True, exclude_ts = False):
+        """
+        Creates a directed acyclic graph corresponding
+        to the reaction nework.  Leaves out the surface
+        states.
+        
+        :param mechanism: mechanism to select for the graph
+
+        :param filename: filename for output
+
+        :param exclude_sites: boolean for whether to exclude
+                              sites from graph
+
+        :param exclude_ts: boolean for whether to exclude
+                           transition states from graph
+        """
+        if mechanism is not None:
+            el_rxns = [self.elementary_rxns[i] for i in 
+                       set(self.rxn_mechanisms.get(mechanism))]
+        else:
+            el_rxns = self.elementary_rxns
+
+        # Create the dag
+        dot = Digraph(comment=mechanism)
+
+        # Create set of species
+        species = chain.from_iterable(chain.from_iterable(el_rxns))
+        if exclude_sites:
+            species = {s for s in species if len(s) > 1}
+        if exclude_ts:
+            species = {s for s in species if not '-' in s}
+
+        for specie in species:
+            dot.node(specie)
+
+        # Add rxn steps
+        for el_rxn in el_rxns:
+            if exclude_ts:
+                el_rxn.pop(1)
+            for n in range(len(el_rxn) - 1):
+                for path in product(el_rxn[n], el_rxn[n+1]):
+                    if set(path) < set(species):
+                        dot.edge(*path)
+
+        if filename is not None:
+            dot.render(filename)
+
+        return dot

@@ -1,4 +1,4 @@
-from solver_base import *
+from .solver_base import *
 from catmap.data import templates
 from copy import copy
 import mpmath as mp
@@ -56,6 +56,9 @@ class MeanFieldSolver(SolverBase):
         """
         return list of turnover frequencies of all the gas-phase species
         :param rates: list of rates of each rxn
+        ineq_cons = {'type': 'ineq',
+                   'fun' : lambda x: x,
+                   'jac' : lambda x: np.eye(*np.shape(x))}
         :type rates: list
         :param verify_coverages: verify that the species has a certain value for the coverage
         :type verify_coverages: bool, optional
@@ -137,7 +140,7 @@ class MeanFieldSolver(SolverBase):
         try:
             diff_idxs = range(len(self.adsorbate_names+self.transition_state_names))
             dRdG = numerical_jacobian(self.get_turnover_frequency,rxn_parameters,self._matrix,eps,diff_idxs=diff_idxs)
-        except ValueError, strerror:
+        except ValueError(strerror):
             resid = str(strerror).rsplit('=',1)[1]
             resid = resid.replace(')','')
             resid.strip()
@@ -177,7 +180,7 @@ class MeanFieldSolver(SolverBase):
         eps = self._mpfloat(self.perturbation_size)
         try:
             dSdG = numerical_jacobian(self.get_selectivity,rxn_parameters,self._matrix,eps)
-        except ValueError,strerror:
+        except ValueError(strerror):
             resid = str(strerror).rsplit('=',1)[1]
             resid = resid.replace(')','')
             resid.strip()
@@ -261,7 +264,7 @@ class MeanFieldSolver(SolverBase):
         self.temperature = current_T
         self._apparent_activation_energy = E_apps
         #self.get_turnover_frequency(rxn_parameters)
-        print E_apps
+        print(E_apps)
         return E_apps
 
     def summary_text(self):
@@ -680,7 +683,8 @@ class MeanFieldSolver(SolverBase):
             if 'kf' in species:
                 parsed_results *= float(rate_constants[int(species[species.index('[')+1:species.index(']')])])
             elif 'kr' in species:
-                parsed_results *= float(rate_constants[len(rate_constants)/2+int(species[species.index('[')+1:species.index(']')])])
+                # use // division to ensure integer result under Python 2 & 3
+                parsed_results *= float(rate_constants[len(rate_constants)//2+int(species[species.index('[')+1:species.index(']')])])
             elif 'p' in species:
                 parsed_results *= float(pressure[int(species[species.index('[')+1:species.index(']')])])
             elif 'theta' in species:

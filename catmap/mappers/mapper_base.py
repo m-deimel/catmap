@@ -26,10 +26,13 @@ get_rates_map(descriptor_ranges,resolution): a function which returns
     [[descriptor_1,descriptor_2,...], [rate_rxn1,rate_rxn2,...]]
 
 """
-from matplotlib.mlab import griddata
+from catmap import griddata
 import numpy as np
 import mpmath as mp
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except:
+    import _pickle as pickle
 import os
 from copy import copy
 from catmap.model import ReactionModel
