@@ -416,7 +416,7 @@ class MinResidMapper(MapperBase):
                         #Get the list of possible guess coverages based
                         #on the search directions
                         checked_dirs = [int(bi)
-                                for bi in np.binary_repr(isMapped[i,j])]
+                                for bi in np.binary_repr(isMapped[i,j].astype(np.int))]
                         #Use binary representation to keep track of which
                         #directions have been checked
                         if len(checked_dirs) < len(self.search_directions):
